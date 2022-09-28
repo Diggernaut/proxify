@@ -222,7 +222,19 @@ func (p *Proxy) Run() error {
 			// for each socks5 proxy create a dialer
 			socks5Dialers := make(map[string]proxy.Dialer)
 			for _, socks5proxy := range p.options.UpstreamSock5Proxies {
-				dialer, err := proxy.SOCKS5("tcp", socks5proxy, nil, proxy.Direct)
+				surl, err := url.Parse(socks5proxy)
+				if err != nil {
+					return err
+				}
+				var pauth = &proxy.Auth{}
+				pwd, exist := surl.User.Password()
+				if exist {
+					pauth.Password = pwd
+					pauth.User = surl.User.Username()
+				} else {
+					pauth = nil
+				}
+				dialer, err := proxy.SOCKS5("tcp", surl.Host, pauth, proxy.Direct)
 				if err != nil {
 					return err
 				}
