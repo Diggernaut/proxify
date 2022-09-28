@@ -10,6 +10,7 @@ import (
 	"github.com/projectdiscovery/gologger/levels"
 	"github.com/projectdiscovery/proxify/pkg/logger/elastic"
 	"github.com/projectdiscovery/proxify/pkg/logger/kafka"
+	"github.com/spf13/viper"
 )
 
 // Options of the runner
@@ -106,10 +107,81 @@ func ParseOptions() *Options {
 		flagSet.BoolVar(&options.Version, "version", false, "Version"),
 		flagSet.BoolVarP(&options.Verbose, "verbose", "v", false, "Verbose"),
 	)
-
+	useCfg := ""
+	flagSet.StringVarP(&useCfg, "use-cfg-file", "uc", "", "Use  cfg file, if pass `default` this file will be used ~/.config/proxify/default-config.yaml")
 	_ = flagSet.Parse()
 	os.MkdirAll(options.Directory, os.ModePerm) //nolint
+	if useCfg != "" {
+		options = &Options{}
+		cfg := viper.New()
+		if useCfg == "default" {
+			cfg.SetConfigFile(path.Join(homeDir, ".config", "proxify", "default-config.yaml"))
+		} else {
+			cfg.SetConfigFile(useCfg)
+		}
 
+		err := cfg.ReadInConfig()
+		if err != nil {
+			panic(err)
+		}
+		options.OutputDirectory = cfg.GetString("output")
+		options.DumpRequest = cfg.GetBool("dump-req")
+		options.DumpResponse = cfg.GetBool("dump-resp")
+		options.RequestDSL = cfg.GetString("request-dsl")
+		options.ResponseDSL = cfg.GetString("response-dsl")
+		options.RequestMatchReplaceDSL = cfg.GetString("request-match-replace-dsl")
+		options.ResponseMatchReplaceDSL = cfg.GetString("response-match-replace-dsl")
+		options.ListenAddrHTTP = cfg.GetString("http-addr")
+		if options.ListenAddrHTTP == "" {
+			options.ListenAddrHTTP = "127.0.0.1:8888"
+		}
+		options.ListenAddrSocks5 = cfg.GetString("socks-addr")
+		if !cfg.IsSet("socks-addr") {
+			options.ListenAddrSocks5 = ""
+		}
+		// if options.ListenAddrSocks5 == "" {
+		// 	options.ListenAddrSocks5 = "127.0.0.1:10080"
+		// }
+		options.ListenDNSAddr = cfg.GetString("dns-addr")
+		options.DNSMapping = cfg.GetString("dns-mapping")
+		options.DNSFallbackResolver = cfg.GetString("resolver")
+		options.UpstreamHTTPProxies = cfg.GetStringSlice("http-proxy")
+		options.UpstreamSocks5Proxies = cfg.GetStringSlice("socks5-proxy")
+		options.UpstreamProxyRequestsNumber = 1
+		if cfg.GetInt("c") > 0 {
+			options.UpstreamProxyRequestsNumber = cfg.GetInt("c")
+		}
+		options.Elastic.Addr = cfg.GetString("elastic-address")
+		options.Elastic.Username = cfg.GetString("elastic-username")
+		options.Elastic.Password = cfg.GetString("elastic-password")
+		options.Elastic.IndexName = cfg.GetString("elastic-index")
+		if options.Elastic.IndexName == "" {
+			options.Elastic.IndexName = "proxify"
+		}
+		options.Kafka.Addr = cfg.GetString("kafka-address")
+		options.Kafka.Topic = cfg.GetString("kafka-topic")
+		if options.Kafka.Topic == "" {
+			options.Kafka.Topic = "proxify"
+		}
+		options.Elastic.SSL = cfg.GetBool("elastic-ssl")
+		options.Elastic.SSLVerification = cfg.GetBool("elastic-ssl-verification")
+		options.CertCacheSize = 256
+		if cfg.GetInt("cert-cache-size") > 0 {
+			options.CertCacheSize = cfg.GetInt("cert-cache-size")
+		}
+
+		options.Allow = cfg.GetStringSlice("allow")
+		options.Deny = cfg.GetStringSlice("deny")
+		options.Silent = cfg.GetBool("silent")
+		options.NoColor = cfg.GetBool("no-color")
+		if !cfg.IsSet("no-color") {
+			options.NoColor = true
+		}
+
+		options.Version = cfg.GetBool("version")
+		options.Verbose = cfg.GetBool("verbose")
+
+	}
 	// Read the inputs and configure the logging
 	options.configureOutput()
 

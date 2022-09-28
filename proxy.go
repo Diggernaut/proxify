@@ -267,6 +267,7 @@ func (p *Proxy) Run() error {
 		if p.options.OnResponseCallback != nil {
 			onResponse = p.options.OnResponseCallback
 		}
+		p.httpproxy.OnRequest(goproxy.Not(goproxy.SrcIpIs(p.options.Allow...))).HandleConnect(goproxy.AlwaysReject)
 		p.httpproxy.OnRequest(goproxy.ReqHostMatches(regexp.MustCompile("^.*:80$"))).HandleConnectFunc(onConnectHTTP)
 		p.httpproxy.OnRequest(goproxy.ReqHostMatches(regexp.MustCompile("^.*:443$"))).HandleConnectFunc(onConnectHTTPS)
 		// catch all
@@ -298,11 +299,12 @@ func (p *Proxy) Run() error {
 				return r, resp
 			},
 		)
-		go http.ListenAndServe(p.options.ListenAddrHTTP, p.httpproxy) // nolint
+		return http.ListenAndServe(p.options.ListenAddrHTTP, p.httpproxy) // nolint
 	}
 
 	// socks5 proxy
 	if p.socks5proxy != nil {
+
 		if p.httpproxy != nil {
 			httpProxyIP, httpProxyPort, err := net.SplitHostPort(p.options.ListenAddrHTTP)
 			if err != nil {
@@ -420,6 +422,7 @@ func NewProxy(options *Options) (*Proxy, error) {
 	}
 
 	var socks5proxy *socks5.Server
+	socks5proxy = nil
 	if options.ListenAddrSocks5 != "" {
 		socks5Config := &socks5.Config{
 			Dial: proxy.httpTunnelDialer,
